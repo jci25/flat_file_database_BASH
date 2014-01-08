@@ -1,0 +1,374 @@
+#!/bin/bash
+
+#
+#this would have been more efficient in python
+#but i wanted to try to use bash becasue I do not
+#have too much experience with it
+#
+function artists {
+	#list artists
+	#del temp file before starting 
+	if [ -e "./tmp_jci25_shit" ]; then
+		rm -rf ./tmp_jci25_shit
+	fi
+	prev="1"
+	#read database
+	while read line 
+	do
+		#write all artists, including duplicates, to temp file
+		if [[ "$prev" == "1" ]]; then
+			echo "$line" >> tmp_jci25_shit
+			prev="0"
+		#next line will be an artist
+		elif [[ "$line" == "" ]]; then
+			prev="1"
+		fi
+	done < $CDDB
+	#sort artists by name then remove duplicates and put in temp
+	cat tmp_jci25_shit | sort | uniq > tmp_jci25_artists
+	#delete old temp file
+	rm -rf ./tmp_jci25_shit
+}
+
+function albums {
+	#get albums for each uniq artists
+	#rm tmp file if exsists
+	if [ -e "./tmp_jci25_albums" ]; then
+		rm -rf ./tmp_jci25_albums
+	fi
+	getAlbum="0"
+	prevLine="1"
+	prevArt=""
+	while read dbLine
+	do
+		if [[ "$prevLine" == "1" ]]; then
+			prevArt="$dbLine"
+			getAlbum="1"	
+			prevLine="0"
+		elif [[ "$prevArt" == "$1" ]] && [[ "$getAlbum" == "1" ]]; then
+			echo "$dbLine" >> tmp_jci25_albums
+			getAlbum="0"
+			prevArt=""
+		elif [[ "$dbLine" == "" ]]; then
+			prevLine="1"
+		fi
+	done < $CDDB
+	#sort artists by name then remove duplicates and put in temp
+   cat tmp_jci25_albums | sort -n | uniq > tmp_jci25_albumsFi
+	rm -rf tmp_jci25_albums
+}
+
+function albumList {
+	#get songs on album from argument
+	if [ -e "./tmp_jci25_songs" ]; then
+		rm -rf ./tmp_jci25_songs
+	fi
+	prev="1"
+	art=""
+	getAlbum="0"
+	album=""
+	getTracks="0"
+	while read line
+	do
+		if [[ "$prev" == "1" ]]; then
+			art="$line"
+			getAlbum="1"
+			prev="0"
+		elif [[ "$art" == "$1" ]] && [[ "$getAlbum" == "1" ]]; then
+			album="$line"
+			getAlbum="0"
+			getTracks="1"
+		elif [[ "$getTracks" == "1" ]] && [[ "$album" == "$2" ]]; then
+			if [[ "$line" == "" ]]; then
+				break
+			fi
+			echo "$line"
+		elif [[ "$line" == "" ]]; then
+			prev="1"
+			getTracks="0"
+		fi
+	done < $CDDB
+}
+
+function listComm {
+#list command
+	artists
+	getArt="1"
+	loop="1"
+	while [[ "$loop" == "1" ]]
+	do
+		if [[ "$getArt" == "1" ]]; then
+			lineNum=1
+			#enum and print artist tmp file
+			while read artLine
+			do
+				echo "$lineNum"  "$artLine"
+				let "lineNum += 1"
+			done < tmp_jci25_artists
+			echo "Choose artist number to see album list or \"q\" to exit, followed by [ENTER]"
+			read artNum
+			echo ""
+			if [[ "$artNum" == "q" ]]; then
+				echo "exiting"
+				exit
+			fi
+			getAlb="1"
+			getArt="0"
+			#turn artNum into artist name then get albums
+			lineNum=1
+			while read artLine
+			do
+				if [[ "$lineNum" == "$artNum" ]]; then
+					artist="$artLine"
+					break
+				fi
+			let "lineNum += 1"
+			done < tmp_jci25_artists
+			
+		elif [[ "$getAlb" == "1" ]]; then
+			albums "$artist"
+			lineNum=1
+			#enum and print albums tmp file
+			while read albLine
+			do
+				echo "$lineNum"  "$albLine"
+				let "lineNum += 1"
+			done < tmp_jci25_albumsFi
+   
+			#promt for input
+			echo "Choose album number to see song list or \"a\" to see artists, followed by [ENTER]"
+			read albNum
+			if [[ "$albNum" == "a" ]]; then
+				echo ""
+				getAlb="0"
+				getArt="1"
+			elif [ $albNum -lt $lineNum ] && [ $albNum -gt 0 ]; then
+				#turn albNum into album name then get songs
+				lineNum=1
+				while read albLine
+				do
+					if [[ "$lineNum" == "$albNum" ]]; then
+						albumGet="$albLine"
+						break
+					fi
+					let "lineNum += 1"
+				done < tmp_jci25_albumsFi
+				echo ""
+				echo "$artist" "$albumGet"
+				albumList "$artist" "$albumGet"
+				getAlb="0"
+				echo "Choose 1 to return to albums or 2 to return to artists or 0 to quit, followed by [ENTER]"
+				read lastIn
+				echo ""
+				if [[ "$lastIn" == "1" ]]; then
+					getAlb="1"
+				elif [[ "$lastIn" == "2" ]]; then
+					getArt="1"
+				elif [[ "$lastIn" == "0" ]]; then
+					echo "exiting"
+					exit
+				else
+					echo "error!!! Restarting"
+					echo""
+					getArt="1"
+				fi
+			else
+				echo "error!!! Restarting"
+				echo""
+				getArt="1"
+			fi
+		fi
+	done
+}
+
+function delComm {
+#delete command
+	#print enum artist and choose
+	artists
+	getArt="1"
+	loop="1"
+	while [[ "$loop" == "1" ]]
+	do
+		if [[ "$getArt" == "1" ]]; then
+			lineNum=1
+			#enum and print artist tmp file
+			while read artLine
+			do
+				echo "$lineNum"  "$artLine"
+				let "lineNum += 1"
+			done < tmp_jci25_artists
+			echo "Choose artist number to see album list or \"q\" to exit, followed by [ENTER]"
+			read artNum
+			echo ""
+			if [[ "$artNum" == "q" ]]; then
+				echo "exiting"
+				exit
+			fi
+			getAlb="1"
+			getArt="0"
+			#turn artNum into artist name then get albums
+			lineNum=1
+			while read artLine
+			do
+				if [[ "$lineNum" == "$artNum" ]]; then
+					artist="$artLine"
+					break
+				fi
+			let "lineNum += 1"
+			done < tmp_jci25_artists
+			
+		elif [[ "$getAlb" == "1" ]]; then
+			albums "$artist"
+			lineNum=1
+			#enum and print albums tmp file
+			while read albLine
+			do
+				echo "$lineNum"  "$albLine"
+				let "lineNum += 1"
+			done < tmp_jci25_albumsFi
+   
+			#promt for input
+			echo "Choose album number to delete or \"a\" to see artists, followed by [ENTER]"
+			read albNum
+			if [[ "$albNum" == "a" ]]; then
+				echo ""
+				getAlb="0"
+				getArt="1"
+			elif [ $albNum -lt $lineNum ] && [ $albNum -gt 0 ]; then
+				#turn albNum into album name then get songs
+				lineNum=1
+				while read albLine
+				do
+					if [[ "$lineNum" == "$albNum" ]]; then
+						albumGet="$albLine"
+						break
+					fi
+					let "lineNum += 1"
+				done < tmp_jci25_albumsFi
+				#del temp file before starting 
+				if [ -e "./tmp_jci25_newDB" ]; then
+					rm -rf ./tmp_jci25_newDB
+				fi
+				#start deleting.
+				prev="1"
+				art=""
+				album=""
+				first="0"
+				#start="1"
+				while read lines
+				do
+					if [[ "$prev" == "1" ]]; then
+						art="$lines"
+						currArt="$art"
+						prev="0"
+						first="1"
+					elif [[ "$art" == "$artist" ]]; then
+						album="$lines"
+						art=""
+					elif [[ "$album" != "$albumGet" ]] && [[ "$lines" != "" ]] && [[ "$first" == "1" ]]; then
+						if [[ "$start" == "1" ]]; then
+							echo "" >> tmp_jci25_newDB
+						fi
+						echo "$currArt" >> tmp_jci25_newDB
+						if [[ "$album" != "" ]]; then
+							echo "$album" >> tmp_jci25_newDB
+						fi
+						echo "$lines" >> tmp_jci25_newDB
+						first="0"
+						start="0"
+					elif [[ "$album" != "$albumGet" ]] && [[ "$lines" != "" ]] && [[ "$first" == "0" ]]; then
+						echo "$lines" >> tmp_jci25_newDB
+					elif [[ "$lines" == "" ]]; then
+						prev="1"
+						art=""
+						album=""
+						if [ -e "./tmp_jci25_newDB" ]; then
+							start="1"
+						fi
+					fi
+				done < $CDDB
+				echo "finished"
+				mv $CDDB ./sampleOld.db
+				mv tmp_jci25_newDB $CDDB
+				rm -rf sampleOld.db
+				echo ""
+				exit
+			else
+				echo "error!!! Restarting"
+				echo""
+				getArt="1"
+			fi
+		fi
+	done
+	
+}
+
+function addComm {
+#add album command
+	echo "Artist:"
+	read artAdd
+	echo "Album name:"
+	read albAdd
+	echo "Release date (year only):"
+	read yearAdd
+	albAdd="$yearAdd $albAdd"
+	#check if album exsist
+		prev="1"
+		art=""
+		album=""
+		while read lines
+		do
+			if [[ "$prev" == "1" ]]; then
+				art="$lines"
+				prev="0"
+			elif [[ "$art" == "$artAdd" ]]; then
+				album="$lines"
+				art=""
+			elif [[ "$album" == "$albAdd" ]]; then
+				echo "album already exsists. exiting."
+				exit
+			elif [[ "$lines" == "" ]]; then
+				prev="1"
+				art=""
+				album=""
+			fi
+		done < $CDDB
+	echo "" >> $CDDB
+	echo "$artAdd" >> $CDDB
+	echo "$albAdd" >> $CDDB
+	echo "Tracklist. End with a blank line to complete tracklist."
+	read song
+	while [[ "$song" != "" ]]
+	do
+		echo "-$song" >> $CDDB
+		read song
+	done
+}
+
+function printUsage {
+	echo "Usage: cddb [OPTION]"
+	echo "OPTIONS:"
+	echo "	-l, List album"
+	echo "	-d, Delete album"
+	echo "	-a, Add album"
+	echo "	-h, Show uasage/help message"
+	exit
+}
+#start up. check for input arguments
+if [ $# -ne 1 ]; then
+	echo "Can only handle one argument."
+	printUsage
+fi
+if [ $1 = "-l" ]; then
+	listComm
+elif [ $1 = "-d" ]; then
+	delComm
+elif [ $1 = "-a" ]; then
+	addComm
+elif [ $1 = "-h" ]; then
+	printUsage
+else
+	echo "invalid argument"
+	printUsage
+fi
+exit
